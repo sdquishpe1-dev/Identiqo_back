@@ -28,4 +28,9 @@ public class User {
     private Role role;
 
     private LocalDateTime createdAt;
+    @Column(nullable = false)
+    private boolean enabled = false;
+
+
+
 }
