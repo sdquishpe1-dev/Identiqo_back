@@ -1,11 +1,14 @@
 package com.identiqo.principal.service;
 
 import com.identiqo.principal.dto.*;
+import com.identiqo.principal.exception.BadRequestException;
 import com.identiqo.principal.model.*;
+import com.identiqo.principal.repository.ProfileRepository;
 import com.identiqo.principal.repository.UserAuthProviderRepository;
 import com.identiqo.principal.repository.UserRepository;
 import com.identiqo.principal.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -15,13 +18,22 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository userRepository;
-    private final UserAuthProviderRepository authProviderRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
-    private final EmailService emailService;
-    private final EmailVerificationService emailVerificationService;
-    private final GoogleAuthService googleAuthService;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private UserAuthProviderRepository authProviderRepository;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    @Autowired
+    private JwtUtil jwtUtil;
+    @Autowired
+    private EmailService emailService;
+    @Autowired
+    private EmailVerificationService emailVerificationService;
+    @Autowired
+    private GoogleAuthService googleAuthService;
+    @Autowired
+    private ProfileRepository profileRepository;
 
     // ========================================
     // REGISTRO LOCAL
@@ -36,7 +48,8 @@ public class AuthService {
                     .findByProviderAndUser(AuthProvider.LOCAL, existingUser)
                     .isPresent();
             if (hasLocal) {
-                throw new RuntimeException("Usuario ya registrado con contraseña");
+                throw new BadRequestException("Usuario ya registrado");
+
             } else {
                 throw new RuntimeException("Este email ya existe con Google. Usa login con Google");
             }
@@ -62,12 +75,12 @@ public class AuthService {
                 .build();
 
         authProviderRepository.save(localProvider);
-
+        boolean hasProfile=false;
         // Crear token de verificación de email
         String token = emailVerificationService.createToken(user);
         emailService.sendVerificationEmail(user.getEmail(), token);
-
-        return new AuthResponse(token);
+        Role role = localProvider.getUser().getRole();
+        return new AuthResponse(token,hasProfile,role);
     }
 
     // ========================================
@@ -76,24 +89,19 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        // Verificar si tiene provider LOCAL
-        UserAuthProvider localProvider = authProviderRepository
-                .findByProviderAndUser(AuthProvider.LOCAL, user)
-                .orElseThrow(() -> new RuntimeException("Usuario no registrado con contraseña"));
+                .orElseThrow(() -> new BadRequestException("Usuario no registrado"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Credenciales inválidas");
+            throw new BadRequestException("Credenciales inválidas");
         }
 
         if (!user.isEnabled()) {
-            throw new RuntimeException("Usuario no verificado");
+            throw new BadRequestException("Usuario no verificado");
         }
-
+        boolean hasProfile=profileRepository.existsProfileByUser_Id(user.getId());
         String token = jwtUtil.generateToken(user.getEmail());
-        return new AuthResponse(token);
-    }
+        Role role = user.getRole();
+        return new AuthResponse(token,hasProfile,role);    }
 
     // ========================================
     // LOGIN / REGISTRO GOOGLE
@@ -114,7 +122,9 @@ public class AuthService {
         if (googleProvider != null) {
             // Usuario ya existe → devolver JWT
             String token = jwtUtil.generateToken(googleProvider.getUser().getEmail());
-            return new AuthResponse(token);
+            boolean hasProfile=profileRepository.existsProfileByUser_Id(googleProvider.getUser().getId());
+            Role role = googleProvider.getUser().getRole();
+            return new AuthResponse(token,hasProfile,role);
         }
 
         // Si no existe, crear usuario o asociar existente
@@ -137,9 +147,10 @@ public class AuthService {
                 .build();
 
         authProviderRepository.save(newGoogleProvider);
-
+        boolean hasProfile=profileRepository.existsProfileByUser_Id(user.getId());
         String token = jwtUtil.generateToken(user.getEmail());
-        return new AuthResponse(token);
+        Role role = user.getRole();
+        return new AuthResponse(token,hasProfile,role);
     }
     public void verifyEmailToken(String token) {
         emailVerificationService.verifyToken(token);
