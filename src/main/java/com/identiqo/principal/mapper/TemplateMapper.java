@@ -3,6 +3,8 @@ package com.identiqo.principal.mapper;
 import com.identiqo.principal.dto.TemplateDto;
 import com.identiqo.principal.model.Template;
 
+import java.util.List;
+
 public class TemplateMapper {
     public static TemplateDto toDto(Template template) {
         TemplateDto templateDto = new TemplateDto();
@@ -19,6 +21,11 @@ public class TemplateMapper {
         entity.setPremium(templateDto.isEsPremium());
         entity.setPreviewImage(templateDto.getImagenPrevia());
         return entity;
+    }
+    public static List<TemplateDto> toDto(List<Template> entityList) {
+        return entityList.stream()
+                .map(TemplateMapper::toDto)
+                .toList();
     }
 }
 
