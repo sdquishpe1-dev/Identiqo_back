@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/templates")
@@ -17,11 +18,14 @@ public class TemplateController {
     private TemplateService templateService;
 
     @PostMapping
-    public void crearTemplate(@RequestBody TemplateDto templateDto)
+    public UUID crearTemplate(@RequestBody TemplateDto templateDto)
     {
-        templateService.guardarPlantilla(templateDto);
+
+        System.out.println(templateDto);
+        return templateService.guardarPlantilla(templateDto);
+
     }
-    @GetMapping
+    @GetMapping("/")
     public List<TemplateDto> findAll() {
         return templateService.recuperarPlantillas();
     }
